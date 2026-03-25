@@ -1,0 +1,6 @@
+all_json/
+logs/
+delete.txt
+test.py
+env.py
+.idea/
