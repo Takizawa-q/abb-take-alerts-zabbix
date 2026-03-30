@@ -1,3 +1,4 @@
+import asyncio
 import time
 import uuid
 
@@ -6,11 +7,12 @@ import pyodbc
 from chatmanager_take_tg_id import take_telegram_id
 from env import params_zabbix
 from datetime import datetime
+from datetime import date
 
 from modules.log import logger
 import textwrap
 
-from tools import parse_zni_link
+from tools import send_message_tg
 
 SERVER_SCSM = params_zabbix['SERVER_SCSM']
 DB_GRAFANA = params_zabbix['DB_GRAFANA']
@@ -58,7 +60,7 @@ def select_problem_id(date_from='2023-01-01', name='inside'):
     sql_query = f'''SELECT [id]
         ,[end_date]
     FROM [zabbix_{name}] where start_date >= '{date_from}' '''
-
+    
     try:
         with pyodbc.connect(conn_string) as conn:
             with conn.cursor() as cur:
@@ -68,14 +70,14 @@ def select_problem_id(date_from='2023-01-01', name='inside'):
     except Exception as e:
         logger.error(e)
         return []
-
+    
     return info
 
 
 def select_all_open_ids(name='inside'):
     conn_string = f'SERVER={SERVER_GLSHP};DATABASE={DB_MONITORING};DRIVER={DRIVER};UID={USER_MONITORING};PWD={PASSWORD_MONITORING}'
     sql_query = f'''SELECT [id], [end_date] FROM [zabbix_{name}] WHERE end_date IS NULL'''
-
+    
     try:
         with pyodbc.connect(conn_string) as conn:
             with conn.cursor() as cur:
@@ -85,7 +87,7 @@ def select_all_open_ids(name='inside'):
     except Exception as e:
         logger.error(e)
         return []
-
+    
     return info
 
 
@@ -312,12 +314,11 @@ WHERE
     try:
         with pyodbc.connect(conn_string) as conn:
             with conn.cursor() as cur:
-                fio_emails_dolznost = cur.execute(
-                    sql_query, (service, )).fetchall()
+                fio_emails_dolznost = cur.execute(sql_query, (service, )).fetchall()
                 logger.info(fio_emails_dolznost)
     except Exception as e:
         logger.error(f'{host}: {e}')
-
+    
     logger.info(f'{host}: {fio_emails_dolznost}')
     if send_role:
         send_role = send_role.split(';')
@@ -339,8 +340,7 @@ WHERE
                         set_send.add(j[0])
             # for i in result_fio_emails_dolznost:
             logger.info(f'after remove: {list_fio_emails_dolznost}')
-            logger.info(
-                f'result_fio_emails_dolznost: {result_fio_emails_dolznost}')
+            logger.info(f'result_fio_emails_dolznost: {result_fio_emails_dolznost}')
             for j in list_fio_emails_dolznost:
                 if j[0] not in set_send:
                     fio = list(j)
@@ -470,7 +470,7 @@ def insert_monitoring(problem_id, host, problem, created, status, host_name=None
                     (id_alert, host, host_name, service, description, begin_date, priority, incident, shozhie_incident,
                     opdata, id_trigger, version_zabbix, zni_link, tags_zabbix) 
                     VALUES(?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)'''
-    zni = parse_zni_link(take_info_zni(service, host, name))
+    zni = take_info_zni(service, host, name)
     status_name = take_status_service_from_service(service)
     if status_name:
         service_and_status = f'{service} ({status_name})'
@@ -521,13 +521,9 @@ def take_info_zni(service, host, name='inside'):
                             elif fields == 1:
                                 i[j] = 'Затронутые: ' + str(i[j])
                             elif fields == 2:
-                                i[j] = 'Время начала: ' + \
-                                    str(i[j].strftime(
-                                        "%d.%m.%Y %H:%M"))  # %H:%M:%S
+                                i[j] = 'Время начала: ' + str(i[j].strftime("%d.%m.%Y %H:%M")) # %H:%M:%S
                             elif fields == 3:
-                                i[j] = 'Время окончания: ' + \
-                                    str(i[j].strftime(
-                                        "%d.%m.%Y %H:%M"))  # %H:%M:%S
+                                i[j] = 'Время окончания: ' + str(i[j].strftime("%d.%m.%Y %H:%M")) # %H:%M:%S
                             elif fields == 4:
                                 i[j] = 'Остановка сервиса: ' + str(i[j])
                             elif fields == 5:
@@ -584,7 +580,7 @@ def check_zni(service, host='', name='inside'):
 
 
 def insert_problem(problem_id, created, host, problem,  visible, status, host_name=None, opdata=None,
-                   id_trigger=None, tags=None,  tags_zabbix=None, name='inside'):
+                         id_trigger=None, tags=None,  tags_zabbix=None, name='inside'):
     # logger.info('TRY INSERT')
     created = 10800 + int(created)
     created = datetime.utcfromtimestamp(created).strftime('%Y-%m-%d %H:%M:%S')
@@ -622,12 +618,10 @@ def insert_problem(problem_id, created, host, problem,  visible, status, host_na
     except Exception as e:
         logger.error(e)
 
-
 def add_phone_in_oktell(alert_number: int, alert_description: str, host: str, name: str, number: str) -> None:
     text = f'В хосте {host} возник алерт {alert_description}'
     # number = refactoring_number(number)
-    res = (uuid.uuid4(), alert_number, text,
-           name, number, datetime.now(), 0, 0)
+    res = (uuid.uuid4(), alert_number, text, name, number, datetime.now(), 0, 0)
     # 89027153617
     logger.info(f'{res}')
     try:
@@ -666,12 +660,11 @@ WHERE
     try:
         with pyodbc.connect(conn_string) as conn:
             with conn.cursor() as cur:
-                fio_emails_dolznost = cur.execute(
-                    sql_query, (service,)).fetchall()
+                fio_emails_dolznost = cur.execute(sql_query, (service,)).fetchall()
                 logger.info(fio_emails_dolznost)
     except Exception as e:
         logger.error(e)
-
+    
     result_fio_emails_dolznost = []
     logger.info(f'{fio_emails_dolznost}')
 
@@ -692,8 +685,7 @@ WHERE
         # for i in result_fio_emails_dolznost:
         # print('after remove', list_fio_emails_dolznost)
         logger.info(f'after remove: {list_fio_emails_dolznost}')
-        logger.info(
-            f'result_fio_emails_dolznost: {result_fio_emails_dolznost}')
+        logger.info(f'result_fio_emails_dolznost: {result_fio_emails_dolznost}')
         for j in list_fio_emails_dolznost:
             if j[0] not in set_send:
                 fio = list(j)
@@ -717,16 +709,13 @@ def insert_send_zabbix(problem_id, host, problem, created, status, opdata=None, 
             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), ?, ?)'''
     service = check_service_in_new_table(host, problem, id_trigger)
     send_role = None
-    logger.info(
-        f'Service: {service}, {problem_id, host, problem, created, status, opdata, id_trigger, tags, host_name}')
+    logger.info(f'Service: {service}, {problem_id, host, problem, created, status, opdata, id_trigger, tags, host_name}')
     if not service[0]:
         if tags:
             send_role = ''.join(tags) + ';Менеджер'
-            fio_emails_dolzhnost, service = take_email_from_host(
-                host, send_role, name=name)
+            fio_emails_dolzhnost, service = take_email_from_host(host, send_role, name=name)
         else:
-            fio_emails_dolzhnost, service = take_email_from_host(
-                host, name=name)
+            fio_emails_dolzhnost, service = take_email_from_host(host, name=name)
     else:
         service, send_role = service[0], service[1]
         # fio_emails = take_fio_emails_from_service(service[0])
@@ -740,27 +729,24 @@ def insert_send_zabbix(problem_id, host, problem, created, status, opdata=None, 
         if send_role:
             for i in fio_emails_dolzhnost:
                 logger.info(i)
-                fio_emails_tgid = [i[0], i[1],
-                                   take_telegram_id(i[1]), i[2], i[3], i[4]]
+                fio_emails_tgid = [i[0], i[1], take_telegram_id(i[1]), i[2], i[3], i[4]]
                 new_fio_emails_tgid.append(fio_emails_tgid)
         else:
             for i in fio_emails_dolzhnost:
-                fio_emails_tgid = [i[0], i[1],
-                                   take_telegram_id(i[1]), i[2], i[3]]
+                fio_emails_tgid = [i[0], i[1], take_telegram_id(i[1]), i[2], i[3]]
                 new_fio_emails_tgid.append(fio_emails_tgid)
     except Exception as e:
         logger.error(f'{e}\n {fio_emails_dolzhnost, send_role}')
     logger.info(f'{fio_emails_dolzhnost, service}')
     if not fio_emails_dolzhnost or not service:
-        logger.info(
-            f"not_find_service: {problem_id, host, problem, created, fio_emails_dolzhnost, service, send_role}")
+        logger.info(f"not_find_service: {problem_id, host, problem, created, fio_emails_dolzhnost, service, send_role}")
         not_find_service(problem_id, host, problem, created)
         return None
 
     result = []
     i = 0
     logger.info(f'Send message {problem_id}: {new_fio_emails_tgid}')
-    zni = parse_zni_link(check_zni(service, host, name))
+    zni = check_zni(service, host, name)
     for fio_emails_tgid in new_fio_emails_tgid:
         logger.debug(f'ggjndflgdfjgdfj{fio_emails_tgid}')
         try:
@@ -769,8 +755,7 @@ def insert_send_zabbix(problem_id, host, problem, created, status, opdata=None, 
             else:
                 status_tg = 'Не отправлен в тг'
             result.append((problem_id, status, fio_emails_tgid[2], host, problem, created, status_tg,
-                           fio_emails_tgid[0], fio_emails_tgid[
-                               1], service, f'{fio_emails_tgid[3]};{fio_emails_tgid[5]}',
+                           fio_emails_tgid[0], fio_emails_tgid[1], service, f'{fio_emails_tgid[3]};{fio_emails_tgid[5]}',
                            opdata, host_name, zni, fio_emails_tgid[4][0:130]))
         except Exception as e:
             if fio_emails_tgid[4]:
@@ -795,8 +780,7 @@ def insert_send_zabbix(problem_id, host, problem, created, status, opdata=None, 
 def update_problem(problem_id, end_date, duration, name='inside'):
     try:
         end_date = 10800 + int(end_date)
-        end_date = datetime.utcfromtimestamp(
-            int(end_date)).strftime('%Y-%m-%d %H:%M:%S')
+        end_date = datetime.utcfromtimestamp(int(end_date)).strftime('%Y-%m-%d %H:%M:%S')
     except (TypeError, ValueError):
         pass
     except Exception as e:
@@ -849,8 +833,7 @@ def select_count_message(problem_id, name):
 
 def insert_message_info(problem_id, message_text, message_date, message_creator, name='inside'):
     message_date = 10800 + int(message_date)
-    message_date = datetime.utcfromtimestamp(
-        int(message_date)).strftime('%Y-%m-%d %H:%M:%S')
+    message_date = datetime.utcfromtimestamp(int(message_date)).strftime('%Y-%m-%d %H:%M:%S')
     try:
 
         message_text = message_text.strip()
@@ -859,8 +842,7 @@ def insert_message_info(problem_id, message_text, message_date, message_creator,
         else:
             message_creator = ''
         res = problem_id, message_text.strip(), message_date, message_creator
-        logger.info('%s %s %s %s', problem_id, message_text,
-                    message_date, message_creator)
+        logger.info('%s %s %s %s', problem_id, message_text, message_date, message_creator)
         conn_string = f'SERVER={SERVER_GLSHP};DATABASE={DB_MONITORING};DRIVER={DRIVER};UID={USER_MONITORING};PWD={PASSWORD_MONITORING}'
         sql_query = f'''INSERT INTO [zabbix_{name}_message] (id, message, time, name_user) VALUES(?, ?, ?, ?)'''
         with pyodbc.connect(conn_string) as conn:
@@ -869,8 +851,7 @@ def insert_message_info(problem_id, message_text, message_date, message_creator,
                 conn.commit()
     except Exception as e:
         logger.error(e)
-        logger.error(
-            f'{problem_id}, {message_text}, {message_date}, {message_creator}')
+        logger.error(f'{problem_id}, {message_text}, {message_date}, {message_creator}')
 
 
 def delete_message(problem_id, name):
@@ -882,8 +863,7 @@ def delete_message(problem_id, name):
             with conn.cursor() as cur:
                 cur.execute(sql_query, res)
                 conn.commit()
-                logger.debug(
-                    f'Delete message: {problem_id} in table zabbix_{name}')
+                logger.debug(f'Delete message: {problem_id} in table zabbix_{name}')
     except Exception as e:
         logger.error(e)
 
@@ -900,8 +880,7 @@ def update_delete_info_monitoring(problem_id, end_date):
                 logger.info(sql_query)
                 cur.execute(sql_query)
                 conn.commit()
-                logger.info(
-                    f'Delete: {problem_id} in table monitoring_app_alert')
+                logger.info(f'Delete: {problem_id} in table monitoring_app_alert')
 
     except Exception as e:
         logger.error(e)
@@ -925,8 +904,7 @@ def update_delete_info_send_zabbix(problem_id, end_date):
 def update_delete_info(problem_id, end_date, name='inside'):
     if type(end_date) == str or type(end_date) == int:
         end_date = 10800 + int(end_date)
-        end_date = datetime.utcfromtimestamp(
-            int(end_date)).strftime('%Y-%m-%d %H:%M:%S')
+        end_date = datetime.utcfromtimestamp(int(end_date)).strftime('%Y-%m-%d %H:%M:%S')
     conn_string = f'SERVER={SERVER_GLSHP};DATABASE={DB_MONITORING};DRIVER={DRIVER};UID={USER_MONITORING};PWD={PASSWORD_MONITORING}'
     sql_query = f'''UPDATE [zabbix_{name}]
                    SET end_date = '{end_date}' WHERE id = '{problem_id}' '''
@@ -947,7 +925,7 @@ def select_visible(name='inside'):
     conn_string = f'SERVER={SERVER_GLSHP};DATABASE={DB_MONITORING};DRIVER={DRIVER};UID={USER_MONITORING};PWD={PASSWORD_MONITORING}'
     sql_query = f'''SELECT [id]
           ,[visible]
-        FROM [zabbix_{name}] with (nolock)'''  # where start_date >= '2023-08-29' AND end_date is NULL'''  # AND host IS NOT NULL'''
+        FROM [zabbix_{name}] with (nolock)''' # where start_date >= '2023-08-29' AND end_date is NULL'''  # AND host IS NOT NULL'''
     # FROM [Grafana].[dbo].[zabbix] where start_date >= '2023-01-01' AND end_date is NULL AND host IS NOT NULL''' # AND id = 485774486 or id = 485781473
 
     try:
@@ -988,8 +966,7 @@ def select_id_today(name='inside'):
     # if len(str(time)) < 2:
     #     time = '0'+str(time)
     today = datetime.today()
-    today = today.strftime('%Y') + '-' + \
-        today.strftime('%m') + '-' + today.strftime('%d')
+    today = today.strftime('%Y') + '-' + today.strftime('%m') + '-' + today.strftime('%d')
     sql_query = f'''SELECT TOP (100) [id]
        
        FROM [zabbix_{name}] with (nolock) where start_date >= '{today}' ORDER BY start_date DESC'''  # start_date >= '2023-08-29' AND '''# AND host IS NOT NULL'''
@@ -1083,7 +1060,7 @@ def select_time_begin(name):
     sql_query = f'''SELECT [id]
       ,[end_date]
       ,[start_date]
-    FROM [zabbix_{name}] where end_date is NULL '''  # start_date >= '2023-08-29' AND '''# AND host IS NOT NULL'''
+    FROM [zabbix_{name}] where end_date is NULL '''#start_date >= '2023-08-29' AND '''# AND host IS NOT NULL'''
     try:
         with pyodbc.connect(conn_string) as conn:
             with conn.cursor() as cur:
@@ -1096,7 +1073,7 @@ def select_time_begin(name):
 
 
 def test_update():
-    a = '''CM-4198
+    a =   '''CM-4198
 Сервисы: Виртуализация ESXi
 Затронутые:
 Время начала: 08:30:00
@@ -1136,6 +1113,7 @@ def test_update():
         logger.error(e)
 
 
+
 if __name__ == '__main__':
     print(check_zni('Аналитический слой данных Блока Риски'))
     # print(take_status_service_from_service('Diasoft Flextera - AML1'))
@@ -1157,6 +1135,8 @@ if __name__ == '__main__':
     # fio_emails_dolzhnost, service = take_email_from_host(host, send_role)
     # print(fio_emails_dolzhnost)
     # print(select_problem_id(date_from='2025-03-03', name='inside'))
+
+
 
     # print(check_zni('Way4 (Lekton Classic)'))
     # test_update()
