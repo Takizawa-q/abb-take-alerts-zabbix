@@ -500,9 +500,9 @@ def take_info_zni(service, host, name='inside'):
     conn_string = f'SERVER=p-glshp-db01;DATABASE=master;DRIVER=ODBC Driver 17 for SQL server;UID=s-ITSupport;PWD=Ca6oQoPyDTKuHqNsMlCv'
     sql_query = f'''SELECT [Number], Service, Affected_service, Date_begin, Date_end, Stop_service, Description
         FROM [Express].[dbo].[zni_cm_jira] where 
-        [Service] = '{service}' or [Affected_service] LIKE '%{service}%' 
+        ([Service] = '{service}' or [Affected_service] LIKE '%{service}%')
         and (Date_begin < GETDATE() and [Date_end] > GETDATE())
-        and (Status NOT IN ('Закрыт', 'Отклонено')) '''
+        and (Status = 'На исполнении')'''
     result_zni = ''
     count_zni = 0
     try:
@@ -566,7 +566,7 @@ def check_zni(service, host='', name='inside'):
     conn_string = f'SERVER=p-glshp-db01;DATABASE=master;DRIVER=ODBC Driver 17 for SQL server;UID=s-ITSupport;PWD=Ca6oQoPyDTKuHqNsMlCv'
     sql_query = f'''SELECT [Number]
     FROM [Express].[dbo].[zni_cm_jira] where (Date_begin < GETDATE() and [Date_end] > GETDATE()) and 
-    ([Service] = '{service}' or [Affected_service] LIKE '%{service}%') and (Status NOT IN ('Закрыт', 'Отклонено'))'''
+    ([Service] = '{service}' or [Affected_service] LIKE '%{service}%') and (Status = 'На исполнении')'''
     result_zni = ''
     try:
         with pyodbc.connect(conn_string) as conn:
