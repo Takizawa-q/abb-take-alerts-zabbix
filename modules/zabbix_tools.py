@@ -97,7 +97,6 @@ class ZabbixTools:
             logger.info(f"{i['eventid']}, dict_problem_ids_db: {dict_problem_ids_db}")
             logger.info(f"New alert in zabbix_{self.name}: {i['eventid']}, {i['clock']}, {host}, {i['name']}, {visible}, {status}, "
                         f"{host_name}, {opdata}, {id_trigger}, {tags}, {tags_zabbix}")
-
             insert_problem(problem_id=int(i['eventid']), created=int(i['clock']), host=host, problem=i['name'],
                            visible=visible, status=status, host_name=host_name, opdata=opdata, id_trigger=int(id_trigger),
                            tags=tags,  tags_zabbix=tags_zabbix, name=self.name)
@@ -186,6 +185,7 @@ class ZabbixTools:
 
     @staticmethod
     def take_tags(i):
+        print("TAKE_TAGS, ARS", i)
         tags = set()
         take_all_tags = ''
         for tag in i['tags']:
@@ -206,6 +206,7 @@ class ZabbixTools:
             tags = set()
         if take_all_tags == '':
             take_all_tags = None
+        print("TAKE_TAGS, ARS", tags, take_all_tags)
         return tags, take_all_tags
 
 

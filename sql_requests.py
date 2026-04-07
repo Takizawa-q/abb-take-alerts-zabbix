@@ -11,7 +11,7 @@ from datetime import date
 
 from modules.log import logger
 import textwrap
-
+from config import debug
 from tools import send_message_tg
 
 SERVER_SCSM = params_zabbix['SERVER_SCSM']
@@ -290,6 +290,7 @@ def take_service_name(name='inside'):
 def take_email_from_host(host, send_role=None, name='inside'):
     dict_all_service = take_service_name(name)
     # print(dict_all_service)
+    print(take_email_from_host, send_role, host)
     try:
         service = dict_all_service[host][0]
     except Exception:
@@ -594,21 +595,23 @@ def insert_problem(problem_id, created, host, problem,  visible, status, host_na
     conn_string = f'SERVER={SERVER_GLSHP};DATABASE={DB_MONITORING};DRIVER={DRIVER};UID={USER_MONITORING};PWD={PASSWORD_MONITORING}'
 
     # list_reason = []
-    sql_query = f'''INSERT INTO [zabbix_{name}] (id, start_date, host, problem, visible, status) VALUES(?, ?, ?, ?, ?, ?)'''
-    try:
-        with pyodbc.connect(conn_string) as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql_query, res)
-                conn.commit()
-    except Exception as e:
-        logger.error(e)
+    if not debug:
+        sql_query = f'''INSERT INTO [zabbix_{name}] (id, start_date, host, problem, visible, status) VALUES(?, ?, ?, ?, ?, ?)'''
+        try:
+            with pyodbc.connect(conn_string) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql_query, res)
+                    conn.commit()
+        except Exception as e:
+            logger.error(e)
 
-        return None
+            return None
     if visible in [1, '1']:
         return None
     try:
         # print('gdfgdfgdf')
         # if problem_id != 863527665:
+        print("BEFORE INSERT SEND ZABBIX ARS")
         insert_send_zabbix(problem_id, host, problem, created, status, opdata, id_trigger=id_trigger, tags=tags,
                            host_name=host_name, name=name)
     except Exception as e:
@@ -709,21 +712,28 @@ def insert_send_zabbix(problem_id, host, problem, created, status, opdata=None, 
     sql_query2 = '''INSERT INTO [send_zabbix_tg] (id, prioryti, id_tg, host, problem, start_date, status_tg, fio,
             email, service, dolzhnost, opdata, host_name, resend_date, zni_link, post) 
             VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), ?, ?)'''
+    print('ars, SEND_ZABBIX', tags)
     service = check_service_in_new_table(host, problem, id_trigger)
     send_role = None
     logger.info(f'Service: {service}, {problem_id, host, problem, created, status, opdata, id_trigger, tags, host_name}')
+    print(service, tags, "ARS SERVICVE", service[0], bool(service[0]))
     if not service[0]:
+        print(service[0], tags, "HELLO")
         if tags:
             send_role = ''.join(tags) + ';Менеджер'
+            print("SEND ROLE 2 ", send_role)
             fio_emails_dolzhnost, service = take_email_from_host(host, send_role, name=name)
         else:
             fio_emails_dolzhnost, service = take_email_from_host(host, name=name)
     else:
         service, send_role = service[0], service[1]
+        if not send_role:
+            send_role = ''.join(tags) + ';Менеджер' if tags else None
         # fio_emails = take_fio_emails_from_service(service[0])
         fio_emails_dolzhnost = take_fio_emails_from_service(service, send_role)
     # print(fio_emails_dolzhnost)
     # return None
+    print(send_role, service, "ARS SEND ROLE")
     logger.info(f'{fio_emails_dolzhnost, service}')
 
     new_fio_emails_tgid = []
@@ -749,6 +759,7 @@ def insert_send_zabbix(problem_id, host, problem, created, status, opdata=None, 
     i = 0
     logger.info(f'Send message {problem_id}: {new_fio_emails_tgid}')
     zni = check_zni(service, host, name)
+
     for fio_emails_tgid in new_fio_emails_tgid:
         logger.debug(f'ggjndflgdfjgdfj{fio_emails_tgid}')
         try:
@@ -768,15 +779,16 @@ def insert_send_zabbix(problem_id, host, problem, created, status, opdata=None, 
     logger.info(f'{result}')
 
     conn_string = f'SERVER={SERVER_SCSM};DATABASE={DB_GRAFANA};DRIVER={DRIVER};UID={USER_GRAFANA};PWD={PASSWORD_GRAFANA}'
-    try:
-        with pyodbc.connect(conn_string) as conn:
-            with conn.cursor() as cur:
-                for i in result:
-                    logger.info(i)
-                    cur.execute(sql_query2, i)
-                conn.commit()
-    except Exception as e:
-        logger.error(e)
+    if not debug:
+        try:
+            with pyodbc.connect(conn_string) as conn:
+                with conn.cursor() as cur:
+                    for i in result:
+                        logger.info(i)
+                        cur.execute(sql_query2, i)
+                    conn.commit()
+        except Exception as e:
+            logger.error(e)
 
 
 def update_problem(problem_id, end_date, duration, name='inside'):
